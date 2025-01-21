@@ -24,7 +24,7 @@ The application will create template versions of these files if they don't exist
 
 ### API Key
 
-Go to (venice.ai)[https://venice.ai] and select "API" to generate an API key. **Only available to paying members**.
+Go to [Visit Venice.AI](https://venice.ai) and select "API" to generate an API key. **Only available to paying members**.
 
 You'll need to add your Venice.ai API key to prompt.json.
 
@@ -43,7 +43,7 @@ The initial template will contain:
     "Steps": 35,
     "Style": false,
     "Prompt": "a modern hacker wearing a hoodie",
-    "OutputDir": "~/Pictures/venice"
+    "OutputDir": "/home/YOURHOME/Pictures/venice"
 }
 ```
 
