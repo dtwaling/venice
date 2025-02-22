@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
@@ -26,12 +27,15 @@ const (
 	RATE_LIMIT      = 2 * time.Second // Changed to exactly 2 seconds
 	emojisPerLine   = 35              // How many emojis fit per line
 	MaxPromptLength = 1250
+	MaxFilenameLen  = 200
 
 	// Available image models
 	MODEL_FLUENTLY_XL         = "fluently-xl" // default, fastest
 	MODEL_FLUX_DEV            = "flux-dev"    // highest quality
 	MODEL_FLUX_DEV_UNCENSORED = "flux-dev-uncensored"
-	MODEL_PONY_REALISM        = "pony-realism" // most uncensored
+	MODEL_PONY_REALISM        = "pony-realism"         // most uncensored
+	MODEL_SDXL                = "lustify-sdxl"         // most gross ...probably
+	MODEL_STABLE_DIFFUSION    = "stable-diffusion-3.5" // most creative
 
 	// Use a single emoji type for consistency
 	DoneBox    = "✅" // or "█" for a solid block
@@ -83,6 +87,41 @@ func generateCfgScale(minConfig, maxConfig float64) float64 {
 	return math.Round(roundedScale*4) / 4
 }
 
+var wrLog *bufio.Writer
+
+func initPromptLog(config *PromptConfig) error {
+	var promptLogPath string
+	promptLogPath = filepath.Join(config.OutputDir, "PromptLog.txt")
+	fPromptLog, err := os.Create(promptLogPath)
+	if err != nil {
+		return err
+	}
+
+	wrLog = bufio.NewWriter(fPromptLog)
+	logLines := []string{
+		"Model: " + config.Model,
+		fmt.Sprintf("\nImage count: %d", config.NumImages),
+		"\nPrompt Name: " + config.PromptName,
+		"\nBase Prompt: " + config.Prompt,
+		"\n\nBelow are the prompt elements for each image result.",
+		"\n - - - - - - - - - - - - - - - - - - - - - - - - - - -"}
+	return updatePromptLog(logLines)
+}
+
+func updatePromptLog(newStrings []string) error {
+	for i := 0; i < len(newStrings); i++ {
+		_, err := wrLog.WriteString(newStrings[i])
+		if err != nil {
+			//displayError("Error writing %d bytes to Prompt Log\nError: %v", b, err)
+			wrLog.Flush()
+			return err
+		}
+	}
+
+	wrLog.Flush()
+	return nil
+}
+
 // Progress indicator lines
 const PROGRESS_LINES = 28
 
@@ -107,6 +146,8 @@ type GenerateResponse struct {
 
 type PromptConfig struct {
 	Model          string  `json:"model"`
+	PromptName     string  `json:"prompt_name"`
+	NameAsSubDir   bool    `json:"name_as_subdir"`
 	Prompt         string  `json:"prompt"`
 	NegativePrompt string  `json:"negative_prompt"`
 	NumImages      int     `json:"num_images"`
@@ -318,6 +359,21 @@ func enhancePrompt(basePrompt string, config *PromptConfig, payload *GenerateReq
 	return fullPrompt, strings.Join(randomElements, ", "), strings.Join(dirtyElements, ", ")
 }
 
+func getUserAPIKey() (string, error) {
+	var newApiKey string
+	fmt.Println("This looks like a first-time run - a Venice.ai API key is required to use this utility.")
+	fmt.Println("Please provide your API Key (or use [ctrl]+[C] to cancel and come back later)")
+	fmt.Println("API Key: ")
+	sl := bufio.NewScanner(os.Stdin)
+	sl.Scan()
+	err := sl.Err()
+	if err != nil {
+		return newApiKey, err
+	}
+	newApiKey = sl.Text()
+	return newApiKey, nil
+}
+
 func initializeVeniceConfig() (*PromptConfig, error) {
 	// Get current user's home directory
 	currentUser, err := user.Current()
@@ -368,32 +424,40 @@ func initializeVeniceConfig() (*PromptConfig, error) {
 	// Create template prompt.json if it doesn't exist
 	configPath := filepath.Join(veniceDir, "prompt.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Prompt for Venice API Key for first time run.
+		newApiKey := "YOUR_API_KEY"
+		if newApiKey, err = getUserAPIKey(); err != nil {
+			return nil, err
+		}
+
 		templateConfig := PromptConfig{
 			Model:          MODEL_FLUENTLY_XL,
-			APIKey:         "YOUR_API_KEY",
+			APIKey:         newApiKey,
 			NegativePrompt: "blur, distort, distorted, blurry, censored, censor, pixelated",
-			NumImages:      150,
+			NumImages:      5,
 			MinConfig:      7.5,
 			MaxConfig:      15.0,
 			Height:         1280,
 			Width:          1280,
 			Steps:          35,
-			Style:          false,
+			Style:          true,
 
 			// Enable/disable features
 			EnableFace:        true,
-			EnableType:        false,
+			EnableType:        true,
 			EnableHair:        false,
 			EnableEyes:        false,
 			EnableClothing:    true,
 			EnableBackground:  false,
-			EnablePoses:       false,
+			EnablePoses:       true,
 			EnableAccessories: false,
 			EnableDirty:       false,
 
 			// Default prompt
-			Prompt:    "a modern hacker wearing a hoodie",
-			OutputDir: filepath.Join(currentUser.HomeDir, "Pictures", "venice"),
+			NameAsSubDir: true,
+			PromptName:   "Hooded Hacker",
+			Prompt:       "a modern hacker wearing a hoodie",
+			OutputDir:    filepath.Join(currentUser.HomeDir, "Pictures", "venice"),
 		}
 
 		configJSON, err := json.MarshalIndent(templateConfig, "", "    ")
@@ -404,9 +468,6 @@ func initializeVeniceConfig() (*PromptConfig, error) {
 		if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
 			return nil, fmt.Errorf("error writing template config: %v", err)
 		}
-		fmt.Printf("Created template config at %s\n", configPath)
-		fmt.Println("Please add your API key to the config file and try again")
-		return nil, fmt.Errorf("new config file created, needs API key")
 	}
 
 	// Rest of the function remains the same...
@@ -444,6 +505,7 @@ func initializeVeniceConfig() (*PromptConfig, error) {
 
 func updateProgress(current,
 	total int,
+	style string,
 	elements string,
 	status string,
 	model string,
@@ -546,6 +608,7 @@ func updateProgress(current,
 
 	fmt.Printf("\033[K\n")
 	fmt.Printf("Model:    %s\033[K\n", model)
+	fmt.Printf("Style:    %s\033[K\n", style)
 	fmt.Printf("Config:   %.2f\033[K\n", math.Round(cfg*4)/4)
 	fmt.Printf("Output:   %s\033[K\n", config.OutputDir)
 	fmt.Printf("\033[K\n")
@@ -569,6 +632,8 @@ func updateProgress(current,
 		errorStatus = lastError
 	}
 	fmt.Printf("Error:    %s\033[K\n", errorStatus)
+
+	// ToDo: Add error to output log file if debug is enabled in config
 }
 
 func displayError(format string, args ...interface{}) {
@@ -593,11 +658,45 @@ func displayError(format string, args ...interface{}) {
 	// Update the progress display to show the new error
 	config, _ := initializeVeniceConfig()
 	current, total := 0, config.NumImages // Assuming these values are available
-	updateProgress(current, total, "",
-		"Error occurred", config.Model, config.CfgScale)
+	updateProgress(
+		current,
+		total,
+		"",
+		"",
+		"Error occurred",
+		config.Model,
+		config.CfgScale)
 
 	// Pause to allow user to see the error
 	time.Sleep(5 * time.Second) // Pause for 5 seconds
+}
+
+func getOutputDirectory(config *PromptConfig, currentUser *user.User) (string, bool, error) {
+	outputDir := config.OutputDir
+	if outputDir == "" {
+		outputDir = filepath.Join(currentUser.HomeDir, "Pictures", "venice")
+	}
+
+	useSubDir := false
+	if config.NameAsSubDir && config.PromptName != "" {
+		useSubDir = true
+		tmpOutputDir := filepath.Join(outputDir, config.PromptName)
+
+		oPathInfo, err := os.Stat(tmpOutputDir)
+		oPathInfo.IsDir()
+		if os.IsNotExist(err) {
+			outputDir = tmpOutputDir
+		} else {
+			tStamp := time.Now().Unix()
+			outputDir = filepath.Join(outputDir, fmt.Sprintf("%s_%d", config.PromptName, tStamp))
+		}
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", false, err
+	}
+
+	return outputDir, useSubDir, nil
 }
 
 func generateFilename(outputDir string,
@@ -632,8 +731,8 @@ func generateFilename(outputDir string,
 		s = strings.Trim(s, "_")
 
 		// Limit length to prevent extremely long filenames
-		if len(s) > 200 {
-			s = s[:200]
+		if len(s) > MaxFilenameLen {
+			s = s[:MaxFilenameLen]
 		}
 		return s
 	}
@@ -713,13 +812,16 @@ func main() {
 		return
 	}
 
-	outputDir := config.OutputDir
-	if outputDir == "" {
-		outputDir = filepath.Join(currentUser.HomeDir, "Pictures", "venice")
+	outputDir, useSubDir, err := getOutputDirectory(config, currentUser)
+	if err != nil {
+		displayError("Error creating output directory: %v", err)
+		return
 	}
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		displayError("Error creating output directory: %v", err)
+	// With all paths and configs set, let's intialize a new TXT file to log the prompts used for each image
+	config.OutputDir = outputDir
+	if err := initPromptLog(config); err != nil {
+		displayError("Error initializing Prompt Log!")
 		return
 	}
 
@@ -763,6 +865,9 @@ func main() {
 					displayError("Error parsing updated config: %v", err)
 					continue
 				}
+				// Re-apply output directory params (determined during initialization) to newConfig
+				newConfig.OutputDir = outputDir
+				newConfig.NameAsSubDir = useSubDir
 				newConfig.setDisplaySettings() // Set display settings after loading config
 				payload.Prompt = newConfig.Prompt
 				payload.CfgScale = newConfig.CfgScale
@@ -776,6 +881,7 @@ func main() {
 
 				fmt.Print("\033[H")
 				updateProgress(i, config.NumImages,
+					payload.StylePreset,
 					randomElements+", "+dirtyElements,
 					"Generating...",
 					payload.Model,
@@ -799,6 +905,7 @@ func main() {
 
 		fmt.Print("\033[H")
 		updateProgress(i, config.NumImages,
+			payload.StylePreset,
 			randomElements,
 			"Generating...",
 			payload.Model,
