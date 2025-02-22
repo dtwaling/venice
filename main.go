@@ -434,7 +434,7 @@ func initializeVeniceConfig() (*PromptConfig, error) {
 			Model:          MODEL_FLUENTLY_XL,
 			APIKey:         newApiKey,
 			NegativePrompt: "blur, distort, distorted, blurry, censored, censor, pixelated",
-			NumImages:      5,
+			NumImages:      23,
 			MinConfig:      7.5,
 			MaxConfig:      15.0,
 			Height:         1280,
@@ -683,12 +683,15 @@ func getOutputDirectory(config *PromptConfig, currentUser *user.User) (string, b
 		tmpOutputDir := filepath.Join(outputDir, config.PromptName)
 
 		oPathInfo, err := os.Stat(tmpOutputDir)
-		oPathInfo.IsDir()
 		if os.IsNotExist(err) {
 			outputDir = tmpOutputDir
 		} else {
-			tStamp := time.Now().Unix()
-			outputDir = filepath.Join(outputDir, fmt.Sprintf("%s_%d", config.PromptName, tStamp))
+			if oPathInfo.IsDir() {
+				tStamp := time.Now().Unix()
+				outputDir = filepath.Join(outputDir, fmt.Sprintf("%s_%d", config.PromptName, tStamp))
+			} else {
+				outputDir = tmpOutputDir
+			}
 		}
 	}
 
@@ -699,11 +702,14 @@ func getOutputDirectory(config *PromptConfig, currentUser *user.User) (string, b
 	return outputDir, useSubDir, nil
 }
 
-func generateFilename(outputDir string,
-	seed int64,
-	fullPrompt,
-	basePrompt string,
-	cfgScale float64) string {
+func generateFilenameAndLogDetail(config *PromptConfig, payload GenerateRequest, fullPrompt string, iResult int) string {
+	seed := payload.Seed
+	cfgScale := payload.CfgScale
+	stylePreset := payload.StylePreset
+	promptName := config.PromptName
+	basePrompt := config.Prompt
+	usingSubDir := config.NameAsSubDir
+	outputDir := config.OutputDir
 	// Clean the prompt for filename use
 	cleanPrompt := func(prompt string) string {
 		// Replace spaces and special characters with underscores
@@ -737,33 +743,48 @@ func generateFilename(outputDir string,
 		return s
 	}
 
-	// Split into base prompt and enhanced elements
-	baseClean := cleanPrompt(basePrompt)
-
-	// Get enhanced parts of the prompt
-	enhancedParts := strings.TrimPrefix(fullPrompt, basePrompt)
-	enhancedParts = strings.TrimPrefix(enhancedParts, ", ")
-	elementsClean := cleanPrompt(enhancedParts)
-
 	// Create filename with counter to avoid overwrites
-	counter := 1
+	counter := 0
+	imgNum := iResult + 1
+	iteration := fmt.Sprintf("%d.%d", imgNum, 0)
+	nameClean := cleanPrompt(promptName)
+	if usingSubDir {
+		nameClean = "image"
+	}
+
 	var filename string
+	var fullFilePath string
+
 	for {
-		filename = filepath.Join(outputDir,
-			fmt.Sprintf("%d_%.1f_%s_%s.png",
-				seed,
-				cfgScale,
-				baseClean,
-				elementsClean,
-			))
-		if _, err := os.Stat(filename); os.IsNotExist(err) {
+		filename = fmt.Sprintf("%s-%s_seed%d_scale%.1f.png",
+			nameClean,
+			iteration,
+			seed,
+			cfgScale,
+		)
+		fullFilePath = filepath.Join(outputDir, filename)
+		if _, err := os.Stat(fullFilePath); os.IsNotExist(err) {
 			break // File doesn't exist, we can use this name
 		}
 		counter++
-		elementsClean = fmt.Sprintf("%s_%d", elementsClean, counter)
+		iteration = fmt.Sprintf("%d.%d", imgNum, counter)
 	}
 
-	return filename
+	enhancedParts := strings.TrimPrefix(fullPrompt, basePrompt)
+	enhancedParts = strings.TrimPrefix(enhancedParts, ", ")
+	var logLines []string
+	logLines = append(logLines, "\n\nImage Filename: ", filename)
+	if stylePreset != "" {
+		logLines = append(logLines, "\nImage Style: ", stylePreset)
+	}
+	if enhancedParts != "" {
+		logLines = append(logLines, "\nEnhancement Elements:\n", enhancedParts)
+	}
+	if err := updatePromptLog(logLines); err != nil {
+		return ""
+	}
+
+	return fullFilePath
 }
 
 func debugLog(format string, args ...interface{}) {
@@ -1045,7 +1066,7 @@ func main() {
 					i--
 					continue
 				}
-				filename := generateFilename(outputDir, payload.Seed, fullPrompt, config.Prompt, payload.CfgScale)
+				filename := generateFilenameAndLogDetail(config, payload, fullPrompt, i)
 				debugLog("Attempting to save image...")
 				debugLog("File size: %d bytes", len(imgBytes))
 
