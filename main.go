@@ -1042,44 +1042,32 @@ func main() {
 				newConfig.OutputDir = outputDir
 				newConfig.NameAsSubDir = useSubDir
 				newConfig.setDisplaySettings() // Set display settings after loading config
-				payload.Prompt = newConfig.Prompt
+
 				payload.CfgScale = newConfig.CfgScale
 				payload.NegativePrompt = newConfig.NegativePrompt
 				payload.Model = newConfig.Model
 				config = &newConfig
-
-				// When config is reloaded, refresh the random elements
-				fullPrompt, randomElements, dirtyElements := enhancePrompt(config.Prompt, config, elements)
-				payload.Prompt = fullPrompt
-
-				fmt.Print("\033[H")
-				updateProgress(i, config.NumImages,
-					payload.StylePreset,
-					randomElements+", "+dirtyElements,
-					"Generating...",
-					payload.Model,
-					payload.CfgScale)
-
 			}
 
 			lastCallTime = time.Now()
 		}
 
+		fullPrompt, randomElements, dirtyElements := enhancePrompt(config.Prompt, config, elements)
+		payload.Prompt = fullPrompt
 		if len(payload.Prompt) > MaxPromptLength {
 			displayError("Prompt too complex, consider simplifying")
 			continue
 		}
 
 		payload.Seed = time.Now().UnixNano()%99_999_999 + int64(i)
-		payload.CfgScale = generateCfgScale(config.MinConfig, config.MaxConfig)
-
-		fullPrompt, randomElements, _ := enhancePrompt(config.Prompt, config, elements)
-		payload.Prompt = fullPrompt
+		if payload.CfgScale == 0 {
+			payload.CfgScale = generateCfgScale(config.MinConfig, config.MaxConfig)
+		}
 
 		fmt.Print("\033[H")
 		updateProgress(i, config.NumImages,
 			payload.StylePreset,
-			randomElements,
+			randomElements+", "+dirtyElements,
 			"Generating...",
 			payload.Model,
 			payload.CfgScale)
