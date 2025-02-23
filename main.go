@@ -103,8 +103,8 @@ func initPromptLog(config *PromptConfig) error {
 		fmt.Sprintf("\nImage count: %d", config.NumImages),
 		"\nPrompt Name: " + config.PromptName,
 		"\nBase Prompt: " + config.Prompt,
-		"\n\nBelow are the prompt elements for each image result.",
-		"\n - - - - - - - - - - - - - - - - - - - - - - - - - - -"}
+		"\n\nBelow are the prompt enhancements for each image result.",
+		"\n--------------------------------------------------------------------------------"}
 	return updatePromptLog(logLines)
 }
 
@@ -281,29 +281,15 @@ func checkAPIStatus(apiKey string) error {
 	return nil
 }
 
-func enhancePrompt(basePrompt string, config *PromptConfig, payload *GenerateRequest) (string, string, string) {
-
-	elements, err := loadPromptElements()
-	if err != nil {
-		return basePrompt, "", ""
-	}
-
+func enhancePrompt(basePrompt string, config *PromptConfig, elements *PromptElements) (string, string, string) {
 	var enhancementTypes []struct {
 		name    string
 		items   []string
 		enabled bool
 	}
 
-	// Add style only if style flag is true
-	if config.Style && len(elements.Style) > 0 {
-		style := getRandomItem(elements.Style)
-		payload.StylePreset = style
-	} else {
-		// Ensure StylePreset is empty when style is false
-		payload.StylePreset = ""
-	}
-
 	// Define all categories with their corresponding toggles
+	// note: Style and Dirty are handled independantly
 	enhancementTypes = []struct {
 		name    string
 		items   []string
@@ -316,15 +302,7 @@ func enhancePrompt(basePrompt string, config *PromptConfig, payload *GenerateReq
 		{"CLOTHING", elements.Clothing, config.EnableClothing},
 		{"BACKGROUND", elements.Backgrounds, config.EnableBackground},
 		{"POSES", elements.Poses, config.EnablePoses},
-		{"ACCESSORIES", elements.Accessories, config.EnableAccessories},
-		{"DIRTY", elements.Dirty, config.EnableDirty},
-	}
-
-	// Add style if enabled
-	if config.Style && len(elements.Style) > 0 {
-		style := getRandomItem(elements.Style)
-		payload.StylePreset = style
-	}
+		{"ACCESSORIES", elements.Accessories, config.EnableAccessories}}
 
 	// Add one random element from each enabled category
 	var randomElements []string
@@ -335,12 +313,12 @@ func enhancePrompt(basePrompt string, config *PromptConfig, payload *GenerateReq
 			}
 		}
 	}
-
-	// Add "uncensored" to the prompt if Dirty is enabled
+	// Add "uncensored" to the prompt's random elements if Dirty is enabled
 	if config.EnableDirty {
 		randomElements = append([]string{"uncensored"}, randomElements...)
 	}
 
+	// Now bring everything together into the fullPrompt variable
 	fullPrompt := basePrompt
 	if len(randomElements) > 0 {
 		if len(basePrompt) > 0 {
@@ -356,7 +334,9 @@ func enhancePrompt(basePrompt string, config *PromptConfig, payload *GenerateReq
 		dirtyElements = append([]string{"uncensored"}, elements.Dirty...)
 	}
 
-	return fullPrompt, strings.Join(randomElements, ", "), strings.Join(dirtyElements, ", ")
+	outRandos := strings.Join(randomElements, ", ")
+	outDirty := strings.Join(dirtyElements, ", ")
+	return fullPrompt, outRandos, outDirty
 }
 
 func getUserAPIKey() (string, error) {
@@ -777,12 +757,12 @@ func generateFilenameAndLogDetail(config *PromptConfig, payload *GenerateRequest
 	enhancedParts := strings.TrimPrefix(fullPrompt, basePrompt)
 	enhancedParts = strings.TrimPrefix(enhancedParts, ", ")
 	var logLines []string
-	logLines = append(logLines, "\n\nImage Filename: ", filename)
+	logLines = append(logLines, "\n=====> File: ", filename)
 	if stylePreset != "" {
 		logLines = append(logLines, "\nImage Style: ", stylePreset)
 	}
 	if enhancedParts != "" {
-		logLines = append(logLines, "\nEnhancement Elements:\n", enhancedParts)
+		logLines = append(logLines, "\nElements:    ", enhancedParts, "\n")
 	}
 	if err := updatePromptLog(logLines); err != nil {
 		return ""
@@ -1007,6 +987,11 @@ func main() {
 		config.CfgScale = 8.5
 	}
 
+	elements, err := loadPromptElements()
+	if err != nil {
+		displayError("Error loading Elements: %v", err)
+	}
+
 	fmt.Print("\033[H\033[2J")
 	fmt.Println()
 	fmt.Println()
@@ -1027,8 +1012,18 @@ func main() {
 	var lastCallTime time.Time
 
 	for i := 0; i < config.NumImages; i++ {
-		if interrupted {
+		if interrupted || failedCount >= 3 {
+			// Dump any logged info in the current buffer and break
+			wrLog.Flush()
 			break
+		}
+
+		if config.Style && len(elements.Style) > 0 {
+			style := getRandomItem(elements.Style)
+			payload.StylePreset = style
+		} else {
+			// Ensure StylePreset is empty when style is false
+			payload.StylePreset = ""
 		}
 
 		if i > 0 {
@@ -1054,7 +1049,7 @@ func main() {
 				config = &newConfig
 
 				// When config is reloaded, refresh the random elements
-				fullPrompt, randomElements, dirtyElements := enhancePrompt(config.Prompt, config, &payload)
+				fullPrompt, randomElements, dirtyElements := enhancePrompt(config.Prompt, config, elements)
 				payload.Prompt = fullPrompt
 
 				fmt.Print("\033[H")
@@ -1078,7 +1073,7 @@ func main() {
 		payload.Seed = time.Now().UnixNano()%99_999_999 + int64(i)
 		payload.CfgScale = generateCfgScale(config.MinConfig, config.MaxConfig)
 
-		fullPrompt, randomElements, _ := enhancePrompt(config.Prompt, config, &payload)
+		fullPrompt, randomElements, _ := enhancePrompt(config.Prompt, config, elements)
 		payload.Prompt = fullPrompt
 
 		fmt.Print("\033[H")
