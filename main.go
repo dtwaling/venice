@@ -804,6 +804,104 @@ func debugLog(format string, args ...interface{}) {
 
 var interrupted bool
 
+func handleResponse(i int, payload *GenerateRequest, config *PromptConfig, client *http.Client, req *http.Request) int {
+	maxRetries := 3
+	retryDelay := 5 * time.Second
+
+	for retry := 0; retry < maxRetries; retry++ {
+		if retry > 0 {
+			displayError("Retrying request (attempt %d/%d)...", retry+1, maxRetries)
+			time.Sleep(retryDelay)
+		}
+
+		debugLog("Starting API request...")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			displayError("HTTP request failed: %v", err)
+			debugLog("Request failed")
+			failedCount++
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		defer resp.Body.Close()
+
+		debugLog("Got response, reading body...")
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			displayError("Error reading response: %v", err)
+			debugLog("Failed to read body")
+			failedCount++
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		debugLog("Read body: %d bytes", len(body))
+
+		if resp.StatusCode != 200 {
+			var apiError struct {
+				Error   string      `json:"error"`
+				Message string      `json:"message"`
+				Details interface{} `json:"details"`
+			}
+			if err := json.Unmarshal(body, &apiError); err == nil {
+				if apiError.Error != "" {
+					displayError("API Error: %s", apiError.Error)
+				}
+				if apiError.Message != "" {
+					displayError("API Message: %s", apiError.Message)
+				}
+				if apiError.Details != nil {
+					displayError("API Details: %v", apiError.Details)
+				}
+			} else {
+				displayError("API Error (Status %d): %s", resp.StatusCode, string(body))
+			}
+
+			failedCount++
+			switch resp.StatusCode {
+			case 401:
+				displayError("Authentication failed - check your API key")
+				return i
+			case 429:
+				displayError("Rate limit exceeded - waiting longer before retry")
+				time.Sleep(RATE_LIMIT * 2)
+				i-- // Retry this iteration
+			case 500, 502, 503, 504:
+				displayError("Server error - will retry")
+				time.Sleep(5 * time.Second)
+				i-- // Retry this iteration
+			default:
+				displayError("Unexpected error occurred")
+			}
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		var result GenerateResponse
+		if err := json.Unmarshal(body, &result); err != nil {
+			displayError("Error parsing API response: %v", err)
+			debugLog("Failed to parse API response")
+			continue
+		}
+		debugLog("Successfully parsed API response, processing %d images", len(result.Images))
+
+		// Make sure we capture any changes made to the iteration int during attempt to store the image...
+		i = storeImageResult(i, result, payload, config)
+		if lastError != "" {
+			debugLog("Stopped due to error writing the image to disk.")
+			continue
+		}
+
+		debugLog("Completed processing this generation")
+
+		break // Success, exit retry loop
+	}
+
+	return i
+}
+
 func storeImageResult(i int, result GenerateResponse, payload *GenerateRequest, config *PromptConfig) int {
 	for _, imgData := range result.Images {
 		debugLog("Decoding image data...")
@@ -1007,102 +1105,12 @@ func main() {
 		req.Header.Add("Content-Type", "application/json")
 
 		client := &http.Client{Timeout: 60 * time.Second}
-		maxRetries := 3
-		retryDelay := 5 * time.Second
-
-		for retry := 0; retry < maxRetries; retry++ {
-			if retry > 0 {
-				displayError("Retrying request (attempt %d/%d)...", retry+1, maxRetries)
-				time.Sleep(retryDelay)
-			}
-
-			debugLog("Starting API request...")
-
-			resp, err := client.Do(req)
-			if err != nil {
-				displayError("HTTP request failed: %v", err)
-				debugLog("Request failed")
-				failedCount++
-				time.Sleep(10 * time.Second)
-				continue
-			}
-			defer resp.Body.Close()
-
-			debugLog("Got response, reading body...")
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				displayError("Error reading response: %v", err)
-				debugLog("Failed to read body")
-				failedCount++
-				time.Sleep(10 * time.Second)
-				continue
-			}
-
-			debugLog("Read body: %d bytes", len(body))
-
-			if resp.StatusCode != 200 {
-				var apiError struct {
-					Error   string      `json:"error"`
-					Message string      `json:"message"`
-					Details interface{} `json:"details"`
-				}
-				if err := json.Unmarshal(body, &apiError); err == nil {
-					if apiError.Error != "" {
-						displayError("API Error: %s", apiError.Error)
-					}
-					if apiError.Message != "" {
-						displayError("API Message: %s", apiError.Message)
-					}
-					if apiError.Details != nil {
-						displayError("API Details: %v", apiError.Details)
-					}
-				} else {
-					displayError("API Error (Status %d): %s", resp.StatusCode, string(body))
-				}
-
-				failedCount++
-				switch resp.StatusCode {
-				case 401:
-					displayError("Authentication failed - check your API key")
-					return
-				case 429:
-					displayError("Rate limit exceeded - waiting longer before retry")
-					time.Sleep(RATE_LIMIT * 2)
-					i-- // Retry this iteration
-				case 500, 502, 503, 504:
-					displayError("Server error - will retry")
-					time.Sleep(5 * time.Second)
-					i-- // Retry this iteration
-				default:
-					displayError("Unexpected error occurred")
-				}
-				time.Sleep(10 * time.Second)
-				continue
-			}
-
-			var result GenerateResponse
-			if err := json.Unmarshal(body, &result); err != nil {
-				displayError("Error parsing API response: %v", err)
-				debugLog("Failed to parse API response")
-				continue
-			}
-			debugLog("Successfully parsed API response, processing %d images", len(result.Images))
-
-			// Make sure we capture any changes made to the iteration int during attempt to store the image...
-			i = storeImageResult(i, result, &payload, config)
-			if lastError != "" {
-				debugLog("Stopped due to error writing the image to disk.")
-				continue
-			}
-
-			debugLog("Completed processing this generation")
-
-			break // Success, exit retry loop
-		}
+		i = handleResponse(i, &payload, config, client, req)
 	}
 
 	if !interrupted {
+		// Flush the write buffer to make sure we store any unwritten logged data to our log file.
+		wrLog.Flush()
 		// Only clear the screen if not interrupted
 		fmt.Print("\033[H\033[2J")
 		fmt.Println()
