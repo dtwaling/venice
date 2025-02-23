@@ -667,6 +667,9 @@ func displayError(format string, args ...interface{}) {
 		config.Model,
 		config.CfgScale)
 
+	// Set this to only write to log file if debug is set in prompt config
+	updatePromptLog([]string{"\n\n❌ ERROR: ", lastError})
+
 	// Pause to allow user to see the error
 	time.Sleep(5 * time.Second) // Pause for 5 seconds
 }
@@ -702,10 +705,11 @@ func getOutputDirectory(config *PromptConfig, currentUser *user.User) (string, b
 	return outputDir, useSubDir, nil
 }
 
-func generateFilenameAndLogDetail(config *PromptConfig, payload GenerateRequest, fullPrompt string, iResult int) string {
+func generateFilenameAndLogDetail(config *PromptConfig, payload *GenerateRequest, iResult int) string {
 	seed := payload.Seed
 	cfgScale := payload.CfgScale
 	stylePreset := payload.StylePreset
+	fullPrompt := payload.Prompt
 	promptName := config.PromptName
 	basePrompt := config.Prompt
 	usingSubDir := config.NameAsSubDir
@@ -799,6 +803,61 @@ func debugLog(format string, args ...interface{}) {
 }
 
 var interrupted bool
+
+func storeImageResult(i int, result GenerateResponse, payload *GenerateRequest, config *PromptConfig) int {
+	for _, imgData := range result.Images {
+		debugLog("Decoding image data...")
+		imgBytes, err := base64.StdEncoding.DecodeString(imgData)
+		if err != nil {
+			displayError("Error decoding image data: %v", err)
+			debugLog("Failed to decode image data")
+			continue
+		}
+		debugLog("Successfully decoded image (%d bytes)", len(imgBytes))
+
+		isAllBlack := true
+		for _, b := range imgBytes {
+			if b != 0 {
+				isAllBlack = false
+				break
+			}
+		}
+
+		minImageSize := 100_000
+		if isAllBlack {
+			displayError("Generated image was all black, retrying...")
+			debugLog("Image was all black")
+			i--
+			continue
+		}
+
+		if len(imgBytes) < minImageSize {
+			failedCount++
+			contentType := http.DetectContentType(imgBytes)
+			debugLog("Image too small or wrong format: %s, size: %d", contentType, len(imgBytes))
+			if contentType != "image/png" {
+				displayError("Unexpected file format: %s (expected PNG)", contentType)
+			}
+			i--
+			continue
+		}
+
+		filename := generateFilenameAndLogDetail(config, payload, i)
+		debugLog("Attempting to save image...")
+		debugLog("File size: %d bytes", len(imgBytes))
+
+		if err := os.WriteFile(filename, imgBytes, 0644); err != nil {
+			displayError("Error saving image: %v", err)
+			debugLog("Failed to save image: %v", err)
+			continue
+		}
+
+		debugLog("Image Saved Successfully")
+		lastError = "" // Clear error status on success
+	}
+
+	return i
+}
 
 func main() {
 
@@ -1030,54 +1089,11 @@ func main() {
 			}
 			debugLog("Successfully parsed API response, processing %d images", len(result.Images))
 
-			for _, imgData := range result.Images {
-				debugLog("Decoding image data...")
-				imgBytes, err := base64.StdEncoding.DecodeString(imgData)
-				if err != nil {
-					displayError("Error decoding image data: %v", err)
-					debugLog("Failed to decode image data")
-					continue
-				}
-				debugLog("Successfully decoded image (%d bytes)", len(imgBytes))
-
-				isAllBlack := true
-				for _, b := range imgBytes {
-					if b != 0 {
-						isAllBlack = false
-						break
-					}
-				}
-
-				minImageSize := 100_000
-				if isAllBlack {
-					displayError("Generated image was all black, retrying...")
-					debugLog("Image was all black")
-					i--
-					continue
-				}
-
-				if len(imgBytes) < minImageSize {
-					failedCount++
-					contentType := http.DetectContentType(imgBytes)
-					debugLog("Image too small or wrong format: %s, size: %d", contentType, len(imgBytes))
-					if contentType != "image/png" {
-						displayError("Unexpected file format: %s (expected PNG)", contentType)
-					}
-					i--
-					continue
-				}
-				filename := generateFilenameAndLogDetail(config, payload, fullPrompt, i)
-				debugLog("Attempting to save image...")
-				debugLog("File size: %d bytes", len(imgBytes))
-
-				if err := os.WriteFile(filename, imgBytes, 0644); err != nil {
-					displayError("Error saving image: %v", err)
-					debugLog("Failed to save image: %v", err)
-					continue
-				}
-
-				debugLog("Image Saved Successfully")
-				lastError = "" // Clear error status on success
+			// Make sure we capture any changes made to the iteration int during attempt to store the image...
+			i = storeImageResult(i, result, &payload, config)
+			if lastError != "" {
+				debugLog("Stopped due to error writing the image to disk.")
+				continue
 			}
 
 			debugLog("Completed processing this generation")
@@ -1094,7 +1110,6 @@ func main() {
 		fmt.Println("✨ Generation complete!")
 		fmt.Println()
 	}
-
 }
 
 func createDefaultElementsFile(elementsPath string) error {
