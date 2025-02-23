@@ -414,7 +414,7 @@ func initializeVeniceConfig() (*PromptConfig, error) {
 			Model:          MODEL_FLUENTLY_XL,
 			APIKey:         newApiKey,
 			NegativePrompt: "blur, distort, distorted, blurry, censored, censor, pixelated",
-			NumImages:      23,
+			NumImages:      42,
 			MinConfig:      7.5,
 			MaxConfig:      15.0,
 			Height:         1280,

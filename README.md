@@ -28,22 +28,28 @@ Go to [Visit Venice.AI](https://venice.ai) and select "API" to generate an API k
 
 You'll need to add your Venice.ai API key to prompt.json.
 
-The initial template will contain:
+If prompt.json does not exist, you will be prompted to provide your API key in the terminal, then a new file will be generated with the pre-sets below:
 
 ```json
 {
-    "Model": "fluently-xl",
-    "APIKey": "YOUR_API_KEY",
-    "NegativePrompt": "blur, distort, distorted, blurry, censored, censor, pixelated",
-    "NumImages": 150,
-    "MinConfig": 7.5,
-    "MaxConfig": 15.0,
-    "Height": 1280,
-    "Width": 1280,
-    "Steps": 35,
-    "Style": false,
-    "Prompt": "a modern hacker wearing a hoodie",
-    "OutputDir": "/home/YOURHOME/Pictures/venice"
+    "model": "fluently-xl",
+    "prompt_name": "Hooded Hacker",
+    "name_as_subdir": true,
+    "prompt": "a modern hacker wearing a hoodie",
+    "negative_prompt": "blur, distort, distorted, blurry, censored, censor, pixelated",
+    "output_dir": "/home/YOURHOME/Pictures/venice",
+    "api_key": "YOUR_API_KEY",
+    "num_images": 42,
+    "min_config": 7.5,
+    "max_config": 15.0,
+    "height": 1280,
+    "width": 1280,
+    "steps": 35,
+    "style": true,
+    "enable_face": true,
+    "enable_type": true,
+    "enable_clothing": true,
+    "enable_poses": true,
 }
 ```
 
@@ -55,6 +61,8 @@ The initial template will contain:
     - flux-dev (highest quality)
     - flux-dev-uncensored
     - pony-realism (most uncensored)
+    - lustify-sdxl (too sexy 4 u ..or maybe gross ...probably)
+    - stable-diffusion-3.5 (most creative - supposedly)
 
 - `NumImages`: How many images to generate
 - `Width/Height`: Image dimensions (default 1280x1280)
@@ -81,8 +89,10 @@ Enable/disable specific enhancement categories:
 
 ## Output
 
-- Generated images are saved to the specified OutputDir (default: ~/Pictures/venice)
-- Filenames include the seed, cfg scale, and prompt elements used
+- Generated images are saved to the specified OutputDir (default: ~/Pictures/venice).
+    - If name-as-subdir is true, a new subfolder is created for each run in the main output folder.
+- Filenames include the image iteration, seed, cfg scale.
+- Promt enhancements are recorded for each image in a PromptLog.txt file.  Each entry records filename, image style, and added elements.
 - Progress display shows:
     - Completion percentage
     - Current status
@@ -102,8 +112,9 @@ The application automatically handles rate limiting:
 ## Error Handling
 
 - Failed generations are tracked and displayed
-- Error messages appear in the progress display
+- Error messages appear in the progress display and get recorded to the PromptLog.txt file
 - Auto-retry for common errors (rate limits, server issues)
+    - Also attempts to mitigates "bad request" spamming in the event if errors caused by something in a prompt.
 
 ## Usage
 
