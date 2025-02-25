@@ -1,0 +1,46 @@
+Model: flux-dev
+Image count: 10
+Prompt Name: Hot Rod Legends
+Base Prompt: A legendary drag race between two super-charged hot rods
+
+Below are the prompt enhancements for each image result.
+--------------------------------------------------------------------------------
+=====> File: image-1.0_seed93459566_scale9.5.png
+Image Style: Dystopian
+Elements:    peaceful serene lakeside, 1938 Buick
+
+=====> File: image-2.0_seed74670690_scale8.2.png
+Image Style: Graffiti
+Elements:    futuristic space station view, Chevy Corvettes
+
+=====> File: image-3.0_seed19419722_scale10.0.png
+Image Style: Photographic
+Elements:    snowy mountain peak vista, jet-fueled funny-car
+
+=====> File: image-4.0_seed65024345_scale10.5.png
+Image Style: Line Art
+Elements:    ancient stone temple setting, Chevy Corvettes
+
+=====> File: image-5.0_seed37400338_scale10.5.png
+Image Style: RPG Fantasy Game
+Elements:    bustling city street, Chevy Corvettes
+
+=====> File: image-6.0_seed34454416_scale14.5.png
+Image Style: RPG Fantasy Game
+Elements:    futuristic space station view, Model T Roadster
+
+=====> File: image-7.0_seed82618460_scale8.5.png
+Image Style: Hyperrealism
+Elements:    sunny beach setting, hover-cars
+
+=====> File: image-8.0_seed89137286_scale12.2.png
+Image Style: Grunge
+Elements:    neon-lit cyberpunk street environment, Dodge Viper
+
+=====> File: image-9.0_seed81852121_scale13.0.png
+Image Style: Cinematic
+Elements:    futuristic space station view, Ferrari
+
+=====> File: image-10.0_seed82327529_scale10.8.png
+Image Style: Photographic
+Elements:    sophisticated refined environment, Maserati
