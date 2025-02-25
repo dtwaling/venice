@@ -124,15 +124,9 @@ func generateCfgScale(minConfig, maxConfig float64) float64 {
 	cfgScale := minConfig + (randomValue * (maxConfig - minConfig))
 
 	// Round to nearest 0.25
-	roundedScale := math.Round(cfgScale*4) / 4
-
+	initRoundedScale := math.Round(cfgScale*4) / 4
 	// Ensure we're within the specified range
-	if roundedScale < minConfig {
-		roundedScale = minConfig
-	}
-	if roundedScale > maxConfig {
-		roundedScale = maxConfig
-	}
+	roundedScale := min(max(initRoundedScale, minConfig), maxConfig)
 
 	// Ensure at least some minimal value
 	if roundedScale < 1.0 {
@@ -163,10 +157,9 @@ func initPromptLog(config *PromptConfig) error {
 }
 
 func updatePromptLog(newStrings []string) error {
-	for i := 0; i < len(newStrings); i++ {
-		_, err := _wrLog.WriteString(newStrings[i])
+	for _, logStr := range newStrings {
+		_, err := _wrLog.WriteString(logStr)
 		if err != nil {
-			//displayError("Error writing %d bytes to Prompt Log\nError: %v", b, err)
 			_wrLog.Flush()
 			return err
 		}
@@ -180,7 +173,7 @@ func clearErrorDisplay() {
 	// Move to the error display area (100 lines below the progress area)
 	fmt.Print("\033[100B")
 	// Clear 3 lines (adjust as needed)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		fmt.Print("\033[K\n")
 	}
 	// Move back to the top
@@ -281,7 +274,7 @@ func updateProgress(current,
 	// Move to top
 	fmt.Print("\033[H")
 	// Clear progress area
-	for i := 0; i < PROGRESS_LINES; i++ {
+	for range PROGRESS_LINES {
 		fmt.Print("\033[K\n")
 	}
 	// Move back to top
@@ -297,7 +290,7 @@ func updateProgress(current,
 
 	// Print emojis based on emojisPerLine constant
 	numFilled := int(float64(percentage) / 100.0 * float64(emojisPerLine))
-	for i := 0; i < emojisPerLine; i++ {
+	for i := range emojisPerLine {
 		if i < numFilled {
 			fmt.Print(DoneBox)
 		} else {
@@ -403,7 +396,7 @@ func updateProgress(current,
 	// ToDo: Add error to output log file if debug is enabled in config
 }
 
-func displayError(format string, args ...interface{}) {
+func displayError(format string, args ...any) {
 	// Clear previous error messages
 	clearErrorDisplay()
 
@@ -558,7 +551,7 @@ func generateFilenameAndLogDetail(config *PromptConfig, payload *GenerateRequest
 	return fullFilePath
 }
 
-func debugLog(format string, args ...interface{}) {
+func debugLog(format string, args ...any) {
 	// Move to line right after progress display
 	fmt.Printf("\033[%d;0H", PROGRESS_LINES+1)
 	// Clear from cursor to end of line
@@ -573,7 +566,7 @@ func handleResponse(iRes int, payload *GenerateRequest, config *PromptConfig, cl
 	maxRetries := 3
 	retryDelay := 5 * time.Second
 
-	for retry := 0; retry < maxRetries; retry++ {
+	for retry := range maxRetries {
 		if retry > 0 {
 			displayError("Retrying request (attempt %d/%d)...", retry+1, maxRetries)
 			time.Sleep(retryDelay)
@@ -606,9 +599,9 @@ func handleResponse(iRes int, payload *GenerateRequest, config *PromptConfig, cl
 
 		if resp.StatusCode != 200 {
 			var apiError struct {
-				Error   string      `json:"error"`
-				Message string      `json:"message"`
-				Details interface{} `json:"details"`
+				Error   string `json:"error"`
+				Message string `json:"message"`
+				Details any    `json:"details"`
 			}
 			if err := json.Unmarshal(body, &apiError); err == nil {
 				if apiError.Error != "" {
