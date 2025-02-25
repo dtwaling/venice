@@ -33,9 +33,9 @@ If prompt.json does not exist, you will be prompted to provide your API key in t
 ```json
 {
     "model": "fluently-xl",
-    "prompt_name": "Hooded Hacker",
+    "prompt_name": "Hot Rod Legends",
     "name_as_subdir": true,
-    "prompt": "a modern hacker wearing a hoodie",
+    "prompt": "an epic drag race between two unrivaled hot rods",
     "negative_prompt": "blur, distort, distorted, blurry, censored, censor, pixelated",
     "output_dir": "/home/YOURHOME/Pictures/venice",
     "api_key": "YOUR_API_KEY",
@@ -46,10 +46,8 @@ If prompt.json does not exist, you will be prompted to provide your API key in t
     "width": 1280,
     "steps": 35,
     "style": true,
-    "enable_face": true,
-    "enable_type": true,
-    "enable_clothing": true,
-    "enable_poses": true,
+    "enable_background": true,
+    "enable_custom": true,
 }
 ```
 
@@ -71,19 +69,23 @@ If prompt.json does not exist, you will be prompted to provide your API key in t
 
 ### Feature Toggles
 
+Below is the full list of categories you can enable in the prompt config.
+In the pre-defined (named) categories you can remove entries from the list to limit possible results using that set of elements.  However, you can add and remove anything you wish tothe Custom elements - just remember to keep each one short and don't forget proper quotes and comma separation.
+Note: if you ever want to reset the elements.json file, simply delete it and restart the application.
+
 Enable/disable specific enhancement categories:
 
 ```json
 {
-    "EnableFace": true,
-    "EnableType": false,
-    "EnableHair": false,
-    "EnableEyes": false,
-    "EnableClothing": true,
-    "EnableBackground": false,
-    "EnablePoses": false,
-    "EnableAccessories": false,
-    "EnableDirty": false
+    "enable_face": false,
+    "enable_type": false,
+    "enable_hair": false,
+    "enable_eyes": false,
+    "enable_clothing": false,
+    "enable_background": true,
+    "enable_poses": false,
+    "enable_accessories": false,
+    "enable_custom": true
 }
 ```
 
