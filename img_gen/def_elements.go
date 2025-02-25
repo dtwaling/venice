@@ -4,8 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
+)
+
+const (
+	GETSTYLES_URI = "https://api.venice.ai/api/v1/image/styles"
 )
 
 type PromptElements struct {
@@ -281,6 +287,37 @@ var E_CUST_DEMO = ElementCategory{
 		"Ford Thunderbird", "Belle Air", "hover-cars",
 		"1970s street-rod", "Muscle-car vs Super-car"}}
 
+// ### ELEMENTS HELPERS ###
+// ========================================================================
+func GetImageStylesAPIResponse(apiKey string) ([]byte, error) {
+	for i := range 3 {
+		req, _ := http.NewRequest("GET", GETSTYLES_URI, nil)
+		req.Header.Add("Authorization", "Bearer "+apiKey)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			fmt.Printf("Failed attempt %d of 3", i+1)
+			fmt.Println("Error retrieving response: ", err)
+			i++
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		defer resp.Body.Close()
+
+		rBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("Failed attempt %d of 3", i+1)
+			fmt.Println("Error reading response body: ", err)
+			i++
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		return rBody, nil
+	}
+
+	return nil, fmt.Errorf("Failed to retrieve updated image styles list.")
+}
+
 // ### ELEMENTS HANDLERS ###
 // ========================================================================
 func SetDefaultElementsConfig(useDemoValues bool) error {
@@ -300,7 +337,7 @@ func SetDefaultElementsConfig(useDemoValues bool) error {
 			return fmt.Errorf("error writing template default elements: %v", err)
 		}
 
-		fmt.Printf("Created default elements template at %s\n", userElementsPath)
+		fmt.Printf("Created default elements template at %s\n", defElementsPath)
 	}
 
 	if !useDemoValues {
@@ -335,6 +372,44 @@ func SetDefaultElementsConfig(useDemoValues bool) error {
 
 		fmt.Printf("User elements config has been populated using initial demo values.\n - file location: %s\n", userElementsPath)
 	}
+
+	return nil
+}
+
+func UpdateDefaultStylesElement() error {
+	config, err := InitializeVeniceConfig()
+	if err != nil {
+		return fmt.Errorf("error retrieving Venice config: %v", err)
+	}
+
+	rBody, err := GetImageStylesAPIResponse(config.APIKey)
+	if err != nil {
+		return fmt.Errorf("error retrieving image styles: %v", err)
+	}
+
+	var rStyles struct {
+		Obj  string   `json:"object"`
+		Data []string `json:"data"`
+	}
+	if err := json.Unmarshal(rBody, &rStyles); err != nil {
+		return fmt.Errorf("error parsing image styles from API response: %v", err)
+	}
+
+	defElementsPath := filepath.Join(VeniceDir, "default_elements.json")
+	var templateElements PromptElements
+
+	templateElements.GetDefaultElementsConfig(true)
+	templateElements.Style = rStyles.Data
+
+	elementJSON, err := json.MarshalIndent(templateElements, "", "    ")
+	if err != nil {
+		return fmt.Errorf("error generating JSON data for updated default elements: %v", err)
+	}
+	if err := os.WriteFile(defElementsPath, elementJSON, 0644); err != nil {
+		return fmt.Errorf("error writing updated JSON data to default elements config: %v", err)
+	}
+
+	fmt.Printf("Styles list has been updated in the default elements config\n - file location: %s\n", defElementsPath)
 
 	return nil
 }

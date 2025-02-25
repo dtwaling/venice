@@ -64,6 +64,13 @@ func rndr_mi(s1, s2 string, menuLvl int) string {
 	return ""
 }
 
+func mOptNotImplemented(opt wmenu.Opt) error {
+	fmt.Println()
+	fmt.Println(_rndr.MustRenderf(warn, "Not yet implemented."))
+	fmt.Println()
+	return nil
+}
+
 func getMainMenu() *wmenu.Menu {
 	optFuncImgGen := func(opt wmenu.Opt) error {
 		fmt.Println()
@@ -93,9 +100,12 @@ func getMainMenu() *wmenu.Menu {
 		fmt.Println()
 		return nil
 	}
-	optFuncNotImpl := func(opt wmenu.Opt) error {
+	optFuncUpdateStylesElement := func(opt wmenu.Opt) error {
 		fmt.Println()
-		fmt.Println(_rndr.MustRenderf(warn, "Not yet implemented."))
+		img_gen.VeniceDir = _veniceDir
+		if err := img_gen.UpdateDefaultStylesElement(); err != nil {
+			fmt.Println(_rndr.MustRenderf(warn, fmt.Sprint("ERROR: ", err)))
+		}
 		fmt.Println()
 		return nil
 	}
@@ -109,10 +119,10 @@ func getMainMenu() *wmenu.Menu {
 
 	menu := wmenu.NewMenu(_rndr.MustRenderf(title, "Choose an action below:"))
 	menu.Option(rndr_mi("Generate Images", "via prompt.json", 1), nil, false, optFuncImgGen)
-	menu.Option(rndr_mi("Image Gen - refresh and update image styles", "updates default_elements.json", 2), nil, false, optFuncNotImpl)
+	menu.Option(rndr_mi("Image Gen - update image styles", "updates default_elements.json", 2), nil, false, optFuncUpdateStylesElement)
 	menu.Option(rndr_mi("Image Gen - reset Elements config to defaults", "", 2), nil, false, optFuncResetElements)
 	menu.Option(rndr_mi("Image Gen - reset both configs to defaults", "", 2), nil, false, optFuncResetImgGenConfigs)
-	menu.Option(rndr_mi("Upscale Image", "", 1), nil, false, optFuncNotImpl)
+	menu.Option(rndr_mi("Upscale Image", "", 1), nil, false, mOptNotImplemented)
 	menu.Option(rndr_mi("Exit", "", 3), nil, true, optFuncExit)
 
 	return menu
