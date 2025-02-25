@@ -13,8 +13,18 @@ import (
 )
 
 const (
-	mi    = "{light_green+bold}%s{-}"
-	mn    = "{light_green+bold}%s ({-}{light_blue}%s{-}{light_green+bold}){-}"
+	// Primary menu items
+	mi  = "{light_green+bold}%s{-}"
+	mi2 = "{light_green+bold}%s ({-}{light_green}%s{-}{light_green+bold}){-}"
+
+	// Secondary menu items
+	mi3 = "{light_blue}%s{-}"
+	mi4 = "{light_blue}%s ({-}{blue}%s{-}{light_blue}){-}"
+
+	// Tertiary menu items
+	mi5 = "{light_yellow+bold}%s{-}"
+	mi6 = "{yellow+bold}%s ({-}{yellow}%s{-}{yellow+bold}){-}"
+
 	warn  = "{red+bold}❌{-} {light_red}%s{-} {red+bold}❌{-}"
 	title = "{intensive_magenta+bold+underline}%s{-}"
 )
@@ -26,12 +36,32 @@ var _veniceDir string
 
 // ### HELPER METHODS ###
 // ========================================================================
-func rndr_mi(s1, s2 string) string {
-	if s2 == "" {
-		return fmt.Sprint(_rndr.MustRenderf(mi, s1))
-	} else {
-		return fmt.Sprint(_rndr.MustRenderf(mn, s1, s2))
+func rndr_mi(s1, s2 string, menuLvl int) string {
+	if menuLvl == 1 {
+		if s2 == "" {
+			return fmt.Sprint(_rndr.MustRenderf(mi, s1))
+		} else {
+			return fmt.Sprint(_rndr.MustRenderf(mi2, s1, s2))
+		}
 	}
+
+	if menuLvl == 2 {
+		if s2 == "" {
+			return fmt.Sprint(_rndr.MustRenderf(mi3, s1))
+		} else {
+			return fmt.Sprint(_rndr.MustRenderf(mi4, s1, s2))
+		}
+	}
+
+	if menuLvl == 3 {
+		if s2 == "" {
+			return fmt.Sprint(_rndr.MustRenderf(mi5, s1))
+		} else {
+			return fmt.Sprint(_rndr.MustRenderf(mi6, s1, s2))
+		}
+	}
+
+	return ""
 }
 
 func getMainMenu() *wmenu.Menu {
@@ -78,12 +108,12 @@ func getMainMenu() *wmenu.Menu {
 	}
 
 	menu := wmenu.NewMenu(_rndr.MustRenderf(title, "Choose an action below:"))
-	menu.Option(rndr_mi("Generate Images", "via prompt.json"), nil, false, optFuncImgGen)
-	menu.Option(rndr_mi("Upscale Image", ""), nil, false, optFuncNotImpl)
-	menu.Option(rndr_mi("Image Gen - refresh and update image styles", "updates default_elements.json"), nil, false, optFuncNotImpl)
-	menu.Option(rndr_mi("Image Gen - reset Elements config to defaults", ""), nil, false, optFuncResetElements)
-	menu.Option(rndr_mi("Image Gen - reset both configs to defaults", ""), nil, false, optFuncResetImgGenConfigs)
-	menu.Option(rndr_mi("Exit", ""), nil, false, optFuncExit)
+	menu.Option(rndr_mi("Generate Images", "via prompt.json", 1), nil, false, optFuncImgGen)
+	menu.Option(rndr_mi("Image Gen - refresh and update image styles", "updates default_elements.json", 2), nil, false, optFuncNotImpl)
+	menu.Option(rndr_mi("Image Gen - reset Elements config to defaults", "", 2), nil, false, optFuncResetElements)
+	menu.Option(rndr_mi("Image Gen - reset both configs to defaults", "", 2), nil, false, optFuncResetImgGenConfigs)
+	menu.Option(rndr_mi("Upscale Image", "", 1), nil, false, optFuncNotImpl)
+	menu.Option(rndr_mi("Exit", "", 3), nil, true, optFuncExit)
 
 	return menu
 }
