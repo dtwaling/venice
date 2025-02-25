@@ -14,10 +14,6 @@ type PromptConfig struct {
 	Model          string  `json:"model"`
 	PromptName     string  `json:"prompt_name"`
 	NameAsSubDir   bool    `json:"name_as_subdir"`
-	Style          bool    `json:"style"`
-	Basics         bool    `json:"basics"`
-	Extras         bool    `json:"extras"`
-	Dirty          bool    `json:"dirty"`
 	Prompt         string  `json:"prompt"`
 	NegativePrompt string  `json:"negative_prompt"`
 	NumImages      int     `json:"num_images"`
@@ -29,6 +25,12 @@ type PromptConfig struct {
 	Width          int     `json:"width"`
 	Height         int     `json:"height"`
 	Steps          int     `json:"steps"`
+
+	// Style related settings
+	Style  bool `json:"style"`
+	Basics bool `json:"basics"`
+	Extras bool `json:"extras"`
+	Dirty  bool `json:"dirty"`
 
 	// Individual category toggles
 	EnableFace        bool `json:"enable_face"`
@@ -132,7 +134,7 @@ func initPromptConfig(newInitOnly bool) (*PromptConfig, error) {
 			// Default prompt
 			NameAsSubDir: true,
 			PromptName:   "Hot Rod Legends",
-			Prompt:       "An epic drag race between two super-charged hot rods",
+			Prompt:       "A legendary drag race between two super-charged hot rods",
 			OutputDir:    filepath.Join(CurrentUser.HomeDir, "Pictures", "venice"),
 		}
 		configJSON, err := json.MarshalIndent(templateConfig, "", "    ")
@@ -165,6 +167,8 @@ func initPromptConfig(newInitOnly bool) (*PromptConfig, error) {
 		if err := retrievePromptConfig(); err != nil {
 			return nil, err
 		}
+
+		fmt.Printf("Prompt config has been populated using intial default values\n - file location: %s\n", _promptConfigPath)
 	} else {
 		// Config already exists, so load from existing file
 		// (we'll validate a few of the key properties at the last step, as needed).
@@ -182,6 +186,8 @@ func initPromptConfig(newInitOnly bool) (*PromptConfig, error) {
 			if err := retrievePromptConfig(); err != nil {
 				return nil, err
 			}
+
+			fmt.Printf("Prompt config has been reset using intial default values\n - file location: %s\n", _promptConfigPath)
 		}
 	}
 

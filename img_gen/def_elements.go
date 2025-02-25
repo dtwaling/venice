@@ -76,10 +76,10 @@ var E_STYLE_DEMO = ElementCategory{
 	[]string{
 		"3D Model", "Analog Film", "Anime", "Cinematic",
 		"Line Art", "Neon Punk", "Origami", "Photographic",
-		"Graffiti", "Hyperrealism", "Impressionist", "Renaissance",
-		"Steampunk", "Watercolor", "RPG Fantasy Game", "Retro Game",
-		"Dreamscape", "Dystopian", "Fairy Tale", "Gothic", "Grunge",
-		"Minimalist", "Monochrome", "Space", "Alien", "Film Noir", "HDR",
+		"Graffiti", "Hyperrealism", "Renaissance",
+		"Steampunk", "Watercolor", "RPG Fantasy Game",
+		"Dreamscape", "Dystopian", "Gothic", "Grunge",
+		"Minimalist", "Monochrome", "Space", "Alien", "HDR",
 		"Long Exposure", "Neon Noir", "Tilt-Shift"}}
 var E_FACE = ElementCategory{
 	"face",
@@ -299,6 +299,7 @@ func SetDefaultElementsConfig(useDemoValues bool) error {
 		if err := os.WriteFile(defElementsPath, elementJSON, 0644); err != nil {
 			return fmt.Errorf("error writing template default elements: %v", err)
 		}
+
 		fmt.Printf("Created default elements template at %s\n", userElementsPath)
 	}
 
@@ -319,6 +320,8 @@ func SetDefaultElementsConfig(useDemoValues bool) error {
 		if err != nil {
 			return fmt.Errorf("error copying default elements to user elements: %v", err)
 		}
+
+		fmt.Printf("User elements config has been populated using full set of default values.\n - file location: %s\n", userElementsPath)
 	} else {
 		// Attempt to create elements template using initial demo values.
 		templateElements.GetDefaultElementsConfig(true)
@@ -329,7 +332,8 @@ func SetDefaultElementsConfig(useDemoValues bool) error {
 		if err := os.WriteFile(userElementsPath, elementJSON, 0644); err != nil {
 			return fmt.Errorf("error writing user elements config: %v", err)
 		}
-		fmt.Printf("Created user elements config at %s\n", userElementsPath)
+
+		fmt.Printf("User elements config has been populated using initial demo values.\n - file location: %s\n", userElementsPath)
 	}
 
 	return nil
