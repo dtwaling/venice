@@ -15,17 +15,21 @@ import (
 const (
 	// Primary menu items
 	mi  = "{light_green+bold}%s{-}"
-	mi2 = "{light_green+bold}%s ({-}{light_green}%s{-}{light_green+bold}){-}"
+	mi2 = "{light_green+bold}%s {-}{intensive_red+bold}-{-} {cyan}%s{-}"
 
 	// Secondary menu items
-	mi3 = "{light_blue}%s{-}"
-	mi4 = "{light_blue}%s ({-}{blue}%s{-}{light_blue}){-}"
+	mi3 = "{intensive_cyan}%s{-}"
+	mi4 = "{intensive_cyan}%s {-}{intensive_red+bold}-{-} {blue}%s{-}"
 
 	// Tertiary menu items
-	mi5 = "{light_yellow+bold}%s{-}"
-	mi6 = "{yellow+bold}%s ({-}{yellow}%s{-}{yellow+bold}){-}"
+	mi5 = "{intensive_yellow+bold}%s{-}"
+	mi6 = "{yellow+bold}%s - {-}{intensive_yellow}%s{-}"
 
-	warn  = "{red+bold}❌{-} {light_red}%s{-} {red+bold}❌{-}"
+	// Quaternary menu items
+	mi7 = "{red}%s{-}"
+	mi8 = "{intensive_red}%s {-}{intensive_blue}-{-} {red}%s{-}"
+
+	warn  = "{red+bold}❌{-} {intensive_red}%s{-} {red+bold}❌{-}"
 	title = "{intensive_magenta+bold+underline}%s{-}"
 )
 
@@ -58,6 +62,14 @@ func rndr_mi(s1, s2 string, menuLvl int) string {
 			return fmt.Sprint(_rndr.MustRenderf(mi5, s1))
 		} else {
 			return fmt.Sprint(_rndr.MustRenderf(mi6, s1, s2))
+		}
+	}
+
+	if menuLvl == 4 {
+		if s2 == "" {
+			return fmt.Sprint(_rndr.MustRenderf(mi7, s1))
+		} else {
+			return fmt.Sprint(_rndr.MustRenderf(mi8, s1, s2))
 		}
 	}
 
@@ -118,11 +130,12 @@ func getMainMenu() *wmenu.Menu {
 	}
 
 	menu := wmenu.NewMenu(_rndr.MustRenderf(title, "Choose an action below:"))
-	menu.Option(rndr_mi("Generate Images", "via prompt.json", 1), nil, false, optFuncImgGen)
-	menu.Option(rndr_mi("Image Gen - update image styles", "updates default_elements.json", 2), nil, false, optFuncUpdateStylesElement)
-	menu.Option(rndr_mi("Image Gen - reset Elements config to defaults", "", 2), nil, false, optFuncResetElements)
-	menu.Option(rndr_mi("Image Gen - reset both configs to defaults", "", 2), nil, false, optFuncResetImgGenConfigs)
-	menu.Option(rndr_mi("Upscale Image", "", 1), nil, false, mOptNotImplemented)
+	menu.Option(rndr_mi("Generate Images (via prompt.json config)", "", 1), nil, false, optFuncImgGen)
+	menu.Option(rndr_mi("Image Gen", "download image styles list (updates default_elements.json)", 1), nil, false, optFuncUpdateStylesElement)
+	menu.Option(rndr_mi("Image Gen", "download available AI models list", 1), nil, false, mOptNotImplemented)
+	menu.Option(rndr_mi("Image Gen", "reset Elements config to defaults", 2), nil, false, optFuncResetElements)
+	menu.Option(rndr_mi("Image Gen", "reset both configs to defaults", 2), nil, false, optFuncResetImgGenConfigs)
+	menu.Option(rndr_mi("Upscale Image", "", 4), nil, false, mOptNotImplemented)
 	menu.Option(rndr_mi("Exit", "", 3), nil, true, optFuncExit)
 
 	return menu
